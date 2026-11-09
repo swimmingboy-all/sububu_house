@@ -164,14 +164,29 @@
 
     <!-- 실거래가 추이 차트 섹션 -->
     <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center">
             <i class="fa-solid fa-chart-area text-sm"></i>
           </div>
-          <h2 class="text-base font-bold text-slate-900">최근 6개월 가격 추이 <span id="chartTitlePyeong" class="text-slate-500 text-sm ml-1 font-semibold">(84㎡ 기준)</span></h2>
+          <div>
+            <h2 class="text-base font-bold text-slate-900">최근 6개월 가격 흐름 <span id="chartTitlePyeong" class="text-slate-500 text-sm ml-1 font-semibold">(84㎡ 기준)</span></h2>
+            <p id="chartSubDesc" class="text-xs text-slate-400 mt-0.5">매매와 전세의 갭(Gap) 및 월별 실거래 추이</p>
+          </div>
+        </div>
+
+        <!-- 차트 보기 모드 전환 탭 (매매·전세 vs 월세 보증금 대비) -->
+        <div class="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold self-start sm:self-auto">
+          <button id="chartModeTradeJeonse" onclick="switchChartMode('trade_jeonse')" class="px-3 py-1.5 rounded-lg bg-white text-brand-700 shadow-sm font-bold transition-all">
+            매매 & 전세 갭
+          </button>
+          <button id="chartModeRent" onclick="switchChartMode('rent_deposit')" class="px-3 py-1.5 rounded-lg text-slate-600 font-bold transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-receipt text-amber-500"></i>
+            월세 보증금 대비 분석
+          </button>
         </div>
       </div>
+
       <div class="w-full h-64 sm:h-72">
         <canvas id="trendChart"></canvas>
       </div>
@@ -244,10 +259,10 @@
     let currentPyeong = 'ALL';
     let currentMainType = '매매';
     let currentDataView = 'trades';
+    let currentChartMode = 'trade_jeonse'; // 'trade_jeonse' | 'rent_deposit'
     let isLoading = false;
     let trendChartInstance = null;
 
-    // 함수명 중복 오류 수정 완료
     function formatMoneyKorean(manwon) {
       if (!manwon || manwon === 0) return '0원';
       const eok = Math.floor(manwon / 10000);
@@ -328,6 +343,24 @@
       }
     }
 
+    function switchChartMode(mode) {
+      currentChartMode = mode;
+      const btnTJ = document.getElementById('chartModeTradeJeonse');
+      const btnRent = document.getElementById('chartModeRent');
+      const subDesc = document.getElementById('chartSubDesc');
+
+      if (mode === 'trade_jeonse') {
+        btnTJ.className = 'px-3 py-1.5 rounded-lg bg-white text-brand-700 shadow-sm font-bold transition-all';
+        btnRent.className = 'px-3 py-1.5 rounded-lg text-slate-600 font-bold transition-all flex items-center gap-1.5';
+        subDesc.innerText = '매매와 전세의 갭(Gap) 및 월별 실거래 추이';
+      } else {
+        btnRent.className = 'px-3 py-1.5 rounded-lg bg-white text-amber-700 shadow-sm font-bold transition-all flex items-center gap-1.5';
+        btnTJ.className = 'px-3 py-1.5 rounded-lg text-slate-600 font-bold transition-all';
+        subDesc.innerText = '평균 보증금(막대, 억원) 대비 평균 월 임대료(점선, 만원) 분석';
+      }
+      updateChart();
+    }
+
     function switchMainType(type) {
       currentMainType = type;
       ['quickTabAll', 'quickTabTrade', 'quickTabJeonse', 'quickTabRent'].forEach(id => {
@@ -335,6 +368,14 @@
       });
       const activeMap = { 'ALL': 'quickTabAll', '매매': 'quickTabTrade', '전세': 'quickTabJeonse', '월세': 'quickTabRent' };
       document.getElementById(activeMap[type]).className = 'px-3.5 py-1.5 rounded-lg bg-white text-brand-700 font-bold shadow-sm';
+      
+      // 월세 탭을 누르면 차트도 자동으로 '월세 보증금 대비' 모드로 전환
+      if (type === '월세') {
+        switchChartMode('rent_deposit');
+      } else if (type === '매매' || type === '전세') {
+        switchChartMode('trade_jeonse');
+      }
+
       updateKpiCards();
       applyFilters();
     }
@@ -455,7 +496,11 @@
         if (t.pyeong !== pKey) return;
         const month = t.date.substring(0, 7);
         if (!monthlyData[month]) {
-          monthlyData[month] = { tradeSum: 0, tradeCount: 0, jeonseSum: 0, jeonseCount: 0, rentSum: 0, rentCount: 0 };
+          monthlyData[month] = { 
+            tradeSum: 0, tradeCount: 0, 
+            jeonseSum: 0, jeonseCount: 0, 
+            rentDepositSum: 0, rentMonthlySum: 0, rentCount: 0 
+          };
         }
         if (t.deal === '매매') {
           monthlyData[month].tradeSum += t.price;
@@ -464,121 +509,186 @@
           monthlyData[month].jeonseSum += t.price;
           monthlyData[month].jeonseCount++;
         } else if (t.deal === '월세') {
-          monthlyData[month].rentSum += t.rent;
+          monthlyData[month].rentDepositSum += (t.deposit || 0);
+          monthlyData[month].rentMonthlySum += (t.rent || 0);
           monthlyData[month].rentCount++;
         }
       });
 
       const labels = Object.keys(monthlyData).sort();
-      
-      const tradeData = labels.map(m => monthlyData[m].tradeCount > 0 ? (monthlyData[m].tradeSum / monthlyData[m].tradeCount / 10000).toFixed(2) : null);
-      const jeonseData = labels.map(m => monthlyData[m].jeonseCount > 0 ? (monthlyData[m].jeonseSum / monthlyData[m].jeonseCount / 10000).toFixed(2) : null);
-      const rentData = labels.map(m => monthlyData[m].rentCount > 0 ? Math.round(monthlyData[m].rentSum / monthlyData[m].rentCount) : null);
-
       const ctx = document.getElementById('trendChart').getContext('2d');
       
       if (trendChartInstance) {
         trendChartInstance.destroy();
       }
 
-      trendChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: '매매 평균가 (억원)',
-              data: tradeData,
-              borderColor: '#2563eb',
-              backgroundColor: 'rgba(37, 99, 235, 0.1)',
-              borderWidth: 2,
-              pointBackgroundColor: '#2563eb',
-              pointRadius: 4,
-              pointHoverRadius: 6,
-              spanGaps: true,
-              tension: 0.3,
-              fill: true,
-              yAxisID: 'y'
-            },
-            {
-              label: '전세 평균가 (억원)',
-              data: jeonseData,
-              borderColor: '#10b981',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-              borderWidth: 2,
-              pointBackgroundColor: '#10b981',
-              pointRadius: 4,
-              pointHoverRadius: 6,
-              spanGaps: true,
-              tension: 0.3,
-              fill: true,
-              yAxisID: 'y'
-            },
-            {
-              label: '월세 평균 (만원)',
-              data: rentData,
-              borderColor: '#f59e0b',
-              backgroundColor: 'transparent',
-              borderWidth: 2,
-              borderDash: [4, 4],
-              pointBackgroundColor: '#f59e0b',
-              pointRadius: 4,
-              pointHoverRadius: 6,
-              spanGaps: true,
-              tension: 0.3,
-              fill: false,
-              yAxisID: 'y1'
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6, font: { family: 'Pretendard', size: 11, weight: 'bold' } } },
-            tooltip: { 
-              backgroundColor: 'rgba(15, 23, 42, 0.9)', 
-              titleFont: { family: 'Pretendard', size: 13 }, 
-              bodyFont: { family: 'Pretendard', size: 13 },
-              padding: 10,
-              callbacks: {
-                label: function(context) {
-                  if (context.dataset.yAxisID === 'y1') {
-                    return context.dataset.label.replace(' (만원)', '') + ': ' + context.parsed.y.toLocaleString() + '만';
+      // 1. 월세 보증금 대비 분석 차트 (Combo Bar + Line)
+      if (currentChartMode === 'rent_deposit') {
+        const rentDepositData = labels.map(m => monthlyData[m].rentCount > 0 ? (monthlyData[m].rentDepositSum / monthlyData[m].rentCount / 10000).toFixed(2) : null);
+        const rentMonthlyData = labels.map(m => monthlyData[m].rentCount > 0 ? Math.round(monthlyData[m].rentMonthlySum / monthlyData[m].rentCount) : null);
+
+        trendChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                type: 'bar',
+                label: '평균 월세 보증금 (억원)',
+                data: rentDepositData,
+                backgroundColor: 'rgba(99, 102, 241, 0.45)',
+                borderColor: '#6366f1',
+                borderWidth: 1.5,
+                borderRadius: 8,
+                barThickness: 28,
+                yAxisID: 'y'
+              },
+              {
+                type: 'line',
+                label: '평균 월 임대료 (만원)',
+                data: rentMonthlyData,
+                borderColor: '#f59e0b',
+                backgroundColor: '#f59e0b',
+                borderWidth: 2.5,
+                borderDash: [3, 3],
+                pointBackgroundColor: '#f59e0b',
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                tension: 0.25,
+                yAxisID: 'y1'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { 
+                position: 'top', 
+                labels: { usePointStyle: true, boxWidth: 7, font: { family: 'Pretendard', size: 11, weight: 'bold' } } 
+              },
+              tooltip: {
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                titleFont: { family: 'Pretendard', size: 13 },
+                bodyFont: { family: 'Pretendard', size: 12 },
+                padding: 10,
+                callbacks: {
+                  label: function(context) {
+                    if (context.dataset.yAxisID === 'y1') {
+                      return '평균 월세: ' + (context.parsed.y ? context.parsed.y.toLocaleString() + '만 원' : '거래 없음');
+                    }
+                    return '평균 보증금: ' + (context.parsed.y ? context.parsed.y + '억 원' : '거래 없음');
                   }
-                  return context.dataset.label.replace(' 평균가 (억원)', '') + ': ' + context.parsed.y + '억';
+                }
+              }
+            },
+            scales: {
+              x: { 
+                grid: { display: false }, 
+                ticks: { font: { family: 'Pretendard', size: 11, weight: '500' } } 
+              },
+              y: { 
+                type: 'linear',
+                position: 'left',
+                grid: { color: '#f1f5f9' }, 
+                title: { display: true, text: '보증금 (억원)', font: { family: 'Pretendard', size: 11 } },
+                ticks: { 
+                  font: { family: 'Pretendard', size: 11 }, 
+                  callback: function(v) { return v + '억'; } 
+                } 
+              },
+              y1: {
+                type: 'linear',
+                position: 'right',
+                grid: { drawOnChartArea: false },
+                title: { display: true, text: '월세 (만원)', font: { family: 'Pretendard', size: 11 } },
+                ticks: {
+                  font: { family: 'Pretendard', size: 11 },
+                  color: '#d97706',
+                  callback: function(v) { return v.toLocaleString() + '만'; }
                 }
               }
             }
+          }
+        });
+      } 
+      // 2. 매매 & 전세 갭 분석 차트 (Line Chart)
+      else {
+        const tradeData = labels.map(m => monthlyData[m].tradeCount > 0 ? (monthlyData[m].tradeSum / monthlyData[m].tradeCount / 10000).toFixed(2) : null);
+        const jeonseData = labels.map(m => monthlyData[m].jeonseCount > 0 ? (monthlyData[m].jeonseSum / monthlyData[m].jeonseCount / 10000).toFixed(2) : null);
+
+        trendChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: '매매 평균가 (억원)',
+                data: tradeData,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                borderWidth: 2,
+                pointBackgroundColor: '#2563eb',
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                spanGaps: true,
+                tension: 0.3,
+                fill: true,
+                yAxisID: 'y'
+              },
+              {
+                label: '전세 평균가 (억원)',
+                data: jeonseData,
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                borderWidth: 2,
+                pointBackgroundColor: '#10b981',
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                spanGaps: true,
+                tension: 0.3,
+                fill: true,
+                yAxisID: 'y'
+              }
+            ]
           },
-          scales: {
-            x: { 
-              grid: { display: false }, 
-              ticks: { font: { family: 'Pretendard', size: 11, weight: '500' } } 
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6, font: { family: 'Pretendard', size: 11, weight: 'bold' } } },
+              tooltip: { 
+                backgroundColor: 'rgba(15, 23, 42, 0.9)', 
+                titleFont: { family: 'Pretendard', size: 13 }, 
+                bodyFont: { family: 'Pretendard', size: 12 },
+                padding: 10,
+                callbacks: {
+                  label: function(context) {
+                    return context.dataset.label.replace(' (억원)', '') + ': ' + context.parsed.y + '억';
+                  }
+                }
+              }
             },
-            y: { 
-              type: 'linear',
-              position: 'left',
-              grid: { color: '#f1f5f9' }, 
-              ticks: { 
-                font: { family: 'Pretendard', size: 11 }, 
-                callback: function(value) { return value + '억'; } 
-              } 
-            },
-            y1: {
-              type: 'linear',
-              position: 'right',
-              grid: { drawOnChartArea: false },
-              ticks: {
-                font: { family: 'Pretendard', size: 11 },
-                color: '#f59e0b',
-                callback: function(value) { return value.toLocaleString() + '만'; }
+            scales: {
+              x: { 
+                grid: { display: false }, 
+                ticks: { font: { family: 'Pretendard', size: 11, weight: '500' } } 
+              },
+              y: { 
+                type: 'linear',
+                position: 'left',
+                grid: { color: '#f1f5f9' }, 
+                ticks: { 
+                  font: { family: 'Pretendard', size: 11 }, 
+                  callback: function(value) { return value + '억'; } 
+                } 
               }
             }
           }
-        }
-      });
+        });
+      }
     }
 
     window.onload = loadMolitData;
