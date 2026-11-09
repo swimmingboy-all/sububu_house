@@ -1,41 +1,9 @@
-name: 국토교통부 실거래가 데이터 자동 수집
-
-on:
-  schedule:
-    # 매일 한국 시간 오전 9시 (UTC 00:00) 자동 갱신
-    - cron: '0 0 * * *'
-  # GitHub 화면에서 사용자가 [Run workflow] 버튼으로 즉시 수집 가능
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  update-helio-data:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 저장소 체크아웃
-        uses: actions/checkout@v4
-
-      - name: 파이썬 3 환경 설정
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 국토교통부 실거래가 수집 실행
-        env:
-          OTTER_API_KEY: ${{ secrets.OTTER_API_KEY }}
-        run: |
-          python scripts/fetch_molit_data.py
-
-      - name: 수집된 실거래 데이터 자동 커밋 및 푸시
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action Bot"
-          git add data/helio_data.json
-          if git diff --staged --quiet; then
-            echo "새로 변경된 실거래 데이터가 없습니다."
-          else
-            git commit -m "chore(data): 국토교통부 실거래가 최신 데이터 자동 갱신 [skip ci]"
-            git push origin main
-          fi
+<!-- ... existing code ... -->
+  - name: 수집된 실거래 데이터 자동 커밋 및 푸시
+    run: |
+      git config --local user.email "action@github.com"
+      git config --local user.name "GitHub Action Bot"
+      git add data/*.json
+      if git diff --staged --quiet; then
+        echo "새로 변경된 실거래 데이터가 없습니다."
+<!-- ... existing code ... -->
