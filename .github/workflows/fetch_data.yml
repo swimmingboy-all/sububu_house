@@ -1,18 +1,22 @@
 name: 국토교통부 실거래가 데이터 자동 수집
+
 on:
-schedule:
-# 매일 한국 시간 오전 9시 (UTC 00:00) 자동 갱신
-- cron: '0 0 * * *'
-GitHub 화면에서 사용자가 [Run workflow] 버튼으로 즉시 수집 가능
-workflow_dispatch:
+  schedule:
+    # 매일 한국 시간 오전 9시 (UTC 00:00) 자동 갱신
+    - cron: '0 0 * * *'
+  # GitHub 화면에서 사용자가 [Run workflow] 버튼으로 즉시 수집 가능
+  workflow_dispatch:
+
 permissions:
-contents: write
+  contents: write
+
 jobs:
-update-helio-data:
-runs-on: ubuntu-latest
-steps:
-- name: 저장소 체크아웃
-uses: actions/checkout@v4
+  update-helio-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
       - name: 파이썬 3 환경 설정
         uses: actions/setup-python@v5
         with:
