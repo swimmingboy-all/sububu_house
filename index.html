@@ -44,7 +44,6 @@
             <h1 id="uiAptTitle" class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">송파 헬리오시티</h1>
             <span id="uiAptBadge" class="bg-brand-50 text-brand-600 text-xs px-2.5 py-0.5 rounded-full font-bold border border-brand-200">송파구 가락동</span>
             <div id="liveCrawlStatusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-            <div id="liveCrawlStatusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
               <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
               <span>국토교통부 API 연동 중...</span>
             </div>
@@ -64,9 +63,6 @@
           <button id="quickTabJeonse" onclick="switchMainType('전세')" class="px-3.5 py-1.5 rounded-lg transition-all text-slate-600 font-bold">전세</button>
           <button id="quickTabRent" onclick="switchMainType('월세')" class="px-3.5 py-1.5 rounded-lg transition-all text-slate-600 font-bold">월세</button>
         </div>
-        <button onclick="openCalcModal('trade')" class="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold shadow">
-          <i class="fa-solid fa-calculator"></i><span>계산기</span>
-        </button>
       </div>
     </div>
   </header>
@@ -166,7 +162,7 @@
       </div>
     </section>
 
-    <!-- 실거래가 추이 차트 섹션 (신규 추가) -->
+    <!-- 실거래가 추이 차트 섹션 -->
     <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -206,12 +202,11 @@
         </table>
       </div>
 
-      <!-- 호가 매물 탭 (동적 생성 리스트) -->
+      <!-- 호가 매물 탭 -->
       <div id="listingsTableContainer" class="hidden overflow-x-auto">
-        <!-- 호가 매물 안내 배너 -->
         <div class="bg-amber-50 px-4 py-2 border-b border-amber-200 text-amber-700 text-xs font-bold flex items-center justify-between">
           <span><i class="fa-solid fa-triangle-exclamation mr-1"></i> 네이버 매물 자동차단 정책으로 인해, 아래 목록은 <b>실거래가 기반의 통계적 추정 매물</b>입니다.</span>
-          <a href="https://new.land.naver.com/complexes/111515" target="_blank" class="underline">실제 매물 확인하기</a>
+          <a id="uiNaverLinkList" href="https://new.land.naver.com/complexes/111515" target="_blank" class="underline">실제 매물 확인하기</a>
         </div>
         <table class="w-full text-left border-collapse text-xs">
           <thead>
@@ -228,7 +223,6 @@
   <script>
     const HELIO_DATA = { pyeongSummary: {}, trades: [], listings: [] };
     
-    // 아파트 메타 정보 관리
     const APT_META = {
       'helio': {
         title: '송파 헬리오시티',
@@ -251,9 +245,9 @@
     let currentMainType = '매매';
     let currentDataView = 'trades';
     let isLoading = false;
-    let trendChartInstance = null; // 신규: 차트 인스턴스 관리 변수
+    let trendChartInstance = null;
 
-    function formatMoneyKorean(manwon) {
+    // 함수명 중복 오류 수정 완료
     function formatMoneyKorean(manwon) {
       if (!manwon || manwon === 0) return '0원';
       const eok = Math.floor(manwon / 10000);
@@ -261,35 +255,34 @@
       return eok > 0 && rest > 0 ? `${eok}억 ${rest.toLocaleString()}만` : (eok > 0 ? `${eok}억` : `${rest.toLocaleString()}만`);
     }
 
-    // 아파트 변경 함수
     function changeApt(aptId) {
       if (isLoading || currentAptId === aptId) return;
       currentAptId = aptId;
       currentPyeong = 'ALL';
       
-      // UI 탭 상태 변경
       document.querySelectorAll('[id^="tabApt_"]').forEach(el => {
         el.className = 'px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-500 hover:bg-slate-200 transition-all';
       });
       document.getElementById(`tabApt_${aptId}`).className = 'px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-slate-800 text-white shadow-sm transition-all';
       
-      // 메타 정보 업데이트
       const meta = APT_META[aptId];
       document.getElementById('uiAptTitle').innerText = meta.title;
       document.getElementById('uiAptBadge').innerText = meta.badge;
       document.getElementById('uiAptDesc').innerText = meta.desc;
       document.getElementById('uiNaverLink').href = `https://new.land.naver.com/complexes/${meta.naverCode}`;
       
+      const linkList = document.getElementById('uiNaverLinkList');
+      if(linkList) linkList.href = `https://new.land.naver.com/complexes/${meta.naverCode}`;
+      
       document.title = `${meta.title} 실거래가 & 호가 대시보드`;
 
-      // 데이터 리로드
       loadMolitData();
     }
 
     async function loadMolitData() {
       if (isLoading) return;
       isLoading = true;
-      document.getElementById('liveCrawlStatusBadge').innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> 연동 중...';
+      document.getElementById('liveCrawlStatusBadge').innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span><span> 연동 중...</span>';
       
       try {
         const fileToLoad = APT_META[currentAptId].file;
@@ -301,23 +294,21 @@
           HELIO_DATA.trades = data.trades;
           HELIO_DATA.pyeongSummary = data.pyeongSummary;
           
-          // 핵심: 국토부 실거래 요약본을 바탕으로 "가상의 현실적 호가 리스트" 자동 생성
           generateEstimatedListings(); 
           
-          document.getElementById('liveCrawlStatusBadge').innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> 연동 완료';
+          document.getElementById('liveCrawlStatusBadge').innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span> 연동 완료</span>';
         }
       } catch (err) {
         console.warn('데이터 로드 실패:', err);
-        document.getElementById('liveCrawlStatusBadge').innerHTML = '수집 대기 중';
+        document.getElementById('liveCrawlStatusBadge').innerHTML = '<span>수집 대기 중</span>';
       } finally {
         isLoading = false;
         updateKpiCards();
         applyFilters();
-        updateChart(); // 신규: 차트 렌더링 호출
+        updateChart();
       }
     }
 
-    // 통계 기반 추정 호가 자동 생성 함수
     function generateEstimatedListings() {
       HELIO_DATA.listings = [];
       let idCounter = 1;
@@ -325,13 +316,11 @@
       for (const [pyeong, summary] of Object.entries(HELIO_DATA.pyeongSummary)) {
         const name = summary.name;
         
-        // 매매 추정치 (저층 급매, 일반, 로얄층)
         if (summary.trade.count > 0 || summary.trade.avg > 0) {
           HELIO_DATA.listings.push({ id: idCounter++, pyeong, type: name, deal: "매매", tag: "저층·급매", askPrice: summary.trade.minAsk, desc: "추정: 1~3층 또는 세안고 갭투자 매물", dong: "임의 배정", floor: "저층" });
           HELIO_DATA.listings.push({ id: idCounter++, pyeong, type: name, deal: "매매", tag: "실입주", askPrice: summary.trade.avg, desc: "추정: 실입주 가능한 중층 일반 매물", dong: "임의 배정", floor: "중층" });
           HELIO_DATA.listings.push({ id: idCounter++, pyeong, type: name, deal: "매매", tag: "로얄동", askPrice: summary.trade.maxAsk, desc: "추정: 송파역 인접 또는 조망권 로얄층", dong: "임의 배정", floor: "고층" });
         }
-        // 전세 추정치
         if (summary.jeonse.count > 0 || summary.jeonse.avg > 0) {
           HELIO_DATA.listings.push({ id: idCounter++, pyeong, type: name, deal: "전세", tag: "급전세", askPrice: summary.jeonse.minAsk, deposit: summary.jeonse.minAsk, rent: 0, desc: "추정: 융자 일부 또는 저층", dong: "임의 배정", floor: "저층" });
           HELIO_DATA.listings.push({ id: idCounter++, pyeong, type: name, deal: "전세", tag: "일반전세", askPrice: summary.jeonse.avg, deposit: summary.jeonse.avg, rent: 0, desc: "추정: 정상 융자무 일반 매물", dong: "임의 배정", floor: "중층" });
@@ -359,7 +348,7 @@
       });
       updateKpiCards();
       applyFilters();
-      updateChart(); // 신규: 평형 변경 시 차트 갱신
+      updateChart();
     }
 
     function switchDataView(view) {
@@ -385,7 +374,6 @@
       const summary = HELIO_DATA.pyeongSummary[pKey];
       if (!summary) return;
 
-      // KPI 카드 1, 2 동적 갱신
       if (currentMainType === '전세') {
         document.getElementById('kpiCard1Title').innerText = `${pKey}㎡ 최근 전세 실거래`;
         document.getElementById('heroRecentPrice').innerText = formatMoneyKorean(summary.jeonse.avg);
@@ -406,7 +394,6 @@
         document.getElementById('heroMaxAskPrice').innerText = formatMoneyKorean(summary.trade.maxAsk);
       }
 
-      // 카드 3, 4 고정 영역 갱신 (사용자가 지적했던 부분 해결)
       document.getElementById('heroJeonsePrice').innerText = formatMoneyKorean(summary.jeonse.avg);
       document.getElementById('heroJeonseRange').innerHTML = `호가: <strong>${formatMoneyKorean(summary.jeonse.minAsk)}~${formatMoneyKorean(summary.jeonse.maxAsk)}</strong>`;
       document.getElementById('heroJeonseRate').innerText = `전세가율 ${((summary.jeonse.avg / summary.trade.avg) * 100).toFixed(1)}%`;
@@ -419,7 +406,6 @@
     function applyFilters() {
       const dealType = currentMainType;
       
-      // 1. 실거래 데이터 필터링
       let filteredTrades = HELIO_DATA.trades.filter(item => {
         return (currentPyeong === 'ALL' || item.pyeong === currentPyeong) &&
                (dealType === 'ALL' || item.deal === dealType);
@@ -437,7 +423,6 @@
         </tr>
       `).join('');
 
-      // 2. 호가 매물 데이터 필터링
       let filteredListings = HELIO_DATA.listings.filter(item => {
         return (currentPyeong === 'ALL' || item.pyeong === currentPyeong) &&
                (dealType === 'ALL' || item.deal === dealType);
@@ -458,20 +443,17 @@
       `).join('');
     }
 
-    // 신규: 차트 데이터 집계 및 렌더링 함수
     function updateChart() {
       if (!HELIO_DATA.trades || HELIO_DATA.trades.length === 0) return;
 
-      // '전체 평형' 선택 시 84㎡(33평)를 기준으로 보여줌
       const pKey = currentPyeong === 'ALL' ? '84' : currentPyeong;
       document.getElementById('chartTitlePyeong').innerText = `(${pKey}㎡ 기준)`;
 
-      // 1. 월별 데이터 집계
       const monthlyData = {};
       
       HELIO_DATA.trades.forEach(t => {
         if (t.pyeong !== pKey) return;
-        const month = t.date.substring(0, 7); // "YYYY.MM" 추출
+        const month = t.date.substring(0, 7);
         if (!monthlyData[month]) {
           monthlyData[month] = { tradeSum: 0, tradeCount: 0, jeonseSum: 0, jeonseCount: 0, rentSum: 0, rentCount: 0 };
         }
@@ -487,22 +469,18 @@
         }
       });
 
-      // 2. 과거 순으로 라벨 정렬
       const labels = Object.keys(monthlyData).sort();
       
-      // 3. 차트용 데이터 배열 생성 (만원 -> 억원 단위 변환, 월세는 만원 단위 그대로)
       const tradeData = labels.map(m => monthlyData[m].tradeCount > 0 ? (monthlyData[m].tradeSum / monthlyData[m].tradeCount / 10000).toFixed(2) : null);
       const jeonseData = labels.map(m => monthlyData[m].jeonseCount > 0 ? (monthlyData[m].jeonseSum / monthlyData[m].jeonseCount / 10000).toFixed(2) : null);
       const rentData = labels.map(m => monthlyData[m].rentCount > 0 ? Math.round(monthlyData[m].rentSum / monthlyData[m].rentCount) : null);
 
       const ctx = document.getElementById('trendChart').getContext('2d');
       
-      // 기존 차트가 있다면 초기화
       if (trendChartInstance) {
         trendChartInstance.destroy();
       }
 
-      // Chart.js 꺾은선 그래프 생성
       trendChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -511,7 +489,7 @@
             {
               label: '매매 평균가 (억원)',
               data: tradeData,
-              borderColor: '#2563eb', // brand-600
+              borderColor: '#2563eb',
               backgroundColor: 'rgba(37, 99, 235, 0.1)',
               borderWidth: 2,
               pointBackgroundColor: '#2563eb',
@@ -525,7 +503,7 @@
             {
               label: '전세 평균가 (억원)',
               data: jeonseData,
-              borderColor: '#10b981', // emerald-500
+              borderColor: '#10b981',
               backgroundColor: 'rgba(16, 185, 129, 0.1)',
               borderWidth: 2,
               pointBackgroundColor: '#10b981',
@@ -539,17 +517,17 @@
             {
               label: '월세 평균 (만원)',
               data: rentData,
-              borderColor: '#f59e0b', // amber-500
+              borderColor: '#f59e0b',
               backgroundColor: 'transparent',
               borderWidth: 2,
-              borderDash: [4, 4], // 점선 표시
+              borderDash: [4, 4],
               pointBackgroundColor: '#f59e0b',
               pointRadius: 4,
               pointHoverRadius: 6,
               spanGaps: true,
               tension: 0.3,
               fill: false,
-              yAxisID: 'y1' // 우측 Y축 사용
+              yAxisID: 'y1'
             }
           ]
         },
@@ -591,10 +569,10 @@
             y1: {
               type: 'linear',
               position: 'right',
-              grid: { drawOnChartArea: false }, // 보조축 그리드선 숨김(중복 방지)
+              grid: { drawOnChartArea: false },
               ticks: {
                 font: { family: 'Pretendard', size: 11 },
-                color: '#f59e0b', // 보조축 라벨 텍스트 색상
+                color: '#f59e0b',
                 callback: function(value) { return value.toLocaleString() + '만'; }
               }
             }
