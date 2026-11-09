@@ -160,6 +160,21 @@
       </div>
     </section>
 
+    <!-- 실거래가 추이 차트 섹션 (신규 추가) -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center">
+            <i class="fa-solid fa-chart-area text-sm"></i>
+          </div>
+          <h2 class="text-base font-bold text-slate-900">최근 6개월 가격 추이 <span id="chartTitlePyeong" class="text-slate-500 text-sm ml-1 font-semibold">(84㎡ 기준)</span></h2>
+        </div>
+      </div>
+      <div class="w-full h-64 sm:h-72">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </section>
+
     <!-- 탭 데이터 -->
     <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="border-b border-slate-200 px-4 sm:px-6 pt-4 flex flex-col sm:flex-row justify-between gap-3">
@@ -210,6 +225,7 @@
     let currentMainType = '매매';
     let currentDataView = 'trades';
     let isLoading = false;
+    let trendChartInstance = null; // 신규: 차트 인스턴스 관리 변수
 
     function formatMoneyKorean(manwon) {
       if (!manwon || manwon === 0) return '0원';
@@ -244,6 +260,7 @@
         isLoading = false;
         updateKpiCards();
         applyFilters();
+        updateChart(); // 신규: 차트 렌더링 호출
       }
     }
 
@@ -289,6 +306,7 @@
       });
       updateKpiCards();
       applyFilters();
+      updateChart(); // 신규: 평형 변경 시 차트 갱신
     }
 
     function switchDataView(view) {
@@ -385,6 +403,115 @@
           <td class="py-2 px-4 text-xs text-slate-500">${item.desc}</td>
         </tr>
       `).join('');
+    }
+
+    // 신규: 차트 데이터 집계 및 렌더링 함수
+    function updateChart() {
+      if (!HELIO_DATA.trades || HELIO_DATA.trades.length === 0) return;
+
+      // '전체 평형' 선택 시 84㎡(33평)를 기준으로 보여줌
+      const pKey = currentPyeong === 'ALL' ? '84' : currentPyeong;
+      document.getElementById('chartTitlePyeong').innerText = `(${pKey}㎡ 기준)`;
+
+      // 1. 월별 데이터 집계
+      const monthlyData = {};
+      
+      HELIO_DATA.trades.forEach(t => {
+        if (t.pyeong !== pKey) return;
+        const month = t.date.substring(0, 7); // "YYYY.MM" 추출
+        if (!monthlyData[month]) {
+          monthlyData[month] = { tradeSum: 0, tradeCount: 0, jeonseSum: 0, jeonseCount: 0 };
+        }
+        if (t.deal === '매매') {
+          monthlyData[month].tradeSum += t.price;
+          monthlyData[month].tradeCount++;
+        } else if (t.deal === '전세') {
+          monthlyData[month].jeonseSum += t.price;
+          monthlyData[month].jeonseCount++;
+        }
+      });
+
+      // 2. 과거 순으로 라벨 정렬
+      const labels = Object.keys(monthlyData).sort();
+      
+      // 3. 차트용 데이터 배열 생성 (만원 -> 억원 단위 변환)
+      const tradeData = labels.map(m => monthlyData[m].tradeCount > 0 ? (monthlyData[m].tradeSum / monthlyData[m].tradeCount / 10000).toFixed(2) : null);
+      const jeonseData = labels.map(m => monthlyData[m].jeonseCount > 0 ? (monthlyData[m].jeonseSum / monthlyData[m].jeonseCount / 10000).toFixed(2) : null);
+
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      
+      // 기존 차트가 있다면 초기화
+      if (trendChartInstance) {
+        trendChartInstance.destroy();
+      }
+
+      // Chart.js 꺾은선 그래프 생성
+      trendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: '매매 평균가 (억원)',
+              data: tradeData,
+              borderColor: '#2563eb', // brand-600
+              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+              borderWidth: 2,
+              pointBackgroundColor: '#2563eb',
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              spanGaps: true,
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: '전세 평균가 (억원)',
+              data: jeonseData,
+              borderColor: '#10b981', // emerald-500
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              borderWidth: 2,
+              pointBackgroundColor: '#10b981',
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              spanGaps: true,
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6, font: { family: 'Pretendard', size: 11, weight: 'bold' } } },
+            tooltip: { 
+              backgroundColor: 'rgba(15, 23, 42, 0.9)', 
+              titleFont: { family: 'Pretendard', size: 13 }, 
+              bodyFont: { family: 'Pretendard', size: 13 },
+              padding: 10,
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label.replace(' 평균가 (억원)', '') + ': ' + context.parsed.y + '억';
+                }
+              }
+            }
+          },
+          scales: {
+            x: { 
+              grid: { display: false }, 
+              ticks: { font: { family: 'Pretendard', size: 11, weight: '500' } } 
+            },
+            y: { 
+              grid: { color: '#f1f5f9' }, 
+              ticks: { 
+                font: { family: 'Pretendard', size: 11 }, 
+                callback: function(value) { return value + '억'; } 
+              } 
+            }
+          }
+        }
+      });
     }
 
     window.onload = loadMolitData;
