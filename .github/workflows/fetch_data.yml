@@ -1,9 +1,44 @@
-<!-- ... existing code ... -->
-  - name: 수집된 실거래 데이터 자동 커밋 및 푸시
-    run: |
-      git config --local user.email "action@github.com"
-      git config --local user.name "GitHub Action Bot"
-      git add data/*.json
-      if git diff --staged --quiet; then
-        echo "새로 변경된 실거래 데이터가 없습니다."
-<!-- ... existing code ... -->
+name: 국토교통부 실거래가 데이터 자동 수집
+
+on:
+  schedule:
+    # 매일 UTC 자정 (한국시간 오전 9시)에 자동 실행
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # 사용자가 GitHub 웹페이지에서 [Run workflow] 버튼을 눌러 수동 실행 가능하도록 설정
+
+jobs:
+  fetch-and-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 저장소 코드 가져오기 (Checkout)
+        uses: actions/checkout@v3
+
+      - name: 🐍 파이썬 환경 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: 🚀 국토교통부 오픈 API 데이터 수집 실행
+        env:
+          # GitHub Secrets에 등록된 API 키를 파이썬 스크립트의 환경변수로 전달
+          OTTER_API_KEY: ${{ secrets.OTTER_API_KEY }}
+        run: |
+          python scripts/fetch_molit_data.py
+
+      - name: 💾 수집된 실거래 데이터 자동 커밋 및 푸시
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          
+          # data 폴더 안의 모든 JSON 파일(헬리오시티, 코오롱 등)을 Staging Area에 추가
+          git add data/*.json
+          
+          # 변경사항이 있는지 확인하고, 있으면 커밋 후 푸시
+          if git diff --staged --quiet; then
+            echo "새로 변경된 실거래 데이터가 없습니다."
+          else
+            git commit -m "chore: 국토교통부 최신 실거래가 데이터 자동 갱신"
+            git push origin main
+          fi
