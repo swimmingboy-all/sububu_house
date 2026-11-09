@@ -80,7 +80,7 @@ def main():
     months = get_recent_months(6)
     
     trade_endpoint = "http://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
-    rent_endpoint = "http://apis.data.go.kr/1613000/RTMSDataSvcAptRentDev/getRTMSDataSvcAptRentDev"
+    rent_endpoint = "http://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent"
 
     all_trades = []
     trade_id = 1
